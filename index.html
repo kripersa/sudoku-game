@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sudoku Game</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body class="light-mode">
+<button id="dark-mode-toggle" aria-pressed="false">Dark Mode</button>
+<div class="container" role="main" aria-label="Sudoku game container">
+  <h1>Sudoku</h1>
+
+  <div id="controls">
+    <label for="difficulty">Difficulty:</label>
+    <select id="difficulty" aria-label="Select difficulty level">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+    <button id="new-game" aria-label="Start new game">New Game</button>
+    <button id="hint" aria-label="Get a hint">Hint</button>
+  </div>
+
+  <div class="status-panel" aria-live="polite" aria-atomic="true">
+    <div id="timer" aria-label="Elapsed time">00:00</div>
+    <div id="error-info">Mistakes: <span id="error-count">0</span> / 3</div>
+    <div id="hint-info">Hints: <span id="hint-count">0</span> / 1</div>
+  </div>
+
+  <div id="game-container">
+    <div id="sudoku-board" role="grid" aria-label="Sudoku board"></div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
