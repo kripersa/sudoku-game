@@ -29,12 +29,16 @@ function startTimer() {
   clearInterval(timer);
   secondsElapsed = 0;
   timerEl.textContent = '00:00';
-  timer = setInterval(() => {
-    secondsElapsed++;
-    let m = Math.floor(secondsElapsed / 60);
-    let s = secondsElapsed % 60;
-    timerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }, 1000);
+  
+  // ტაიმერის დაყოვნება 3 წამით
+  setTimeout(() => {
+    timer = setInterval(() => {
+      secondsElapsed++;
+      let m = Math.floor(secondsElapsed / 60);
+      let s = secondsElapsed % 60;
+      timerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
+  }, 3000); 
 }
 
 function generateSudoku(difficulty) {
@@ -63,19 +67,43 @@ function renderBoard(puzzle) {
     cell.classList.add('cell');
     cell.dataset.index = idx;
     cell.setAttribute('role', 'gridcell');
-    cell.setAttribute('tabindex', '-1');
 
     if (num) {
       cell.textContent = num;
       cell.classList.add('prefilled');
     } else {
-      cell.textContent = '';
-    }
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '1';
+      input.max = '9';
+      input.maxLength = '1';
+      input.inputMode = 'numeric';
+      input.setAttribute('aria-label', `Cell at position ${idx}`);
+      input.setAttribute('tabindex', '-1');
 
-    cell.addEventListener('click', () => {
-      if (gameOver) return;
-      if (cell.classList.contains('prefilled')) return;
-      selectCell(idx);
+      input.addEventListener('input', (e) => {
+        let value = e.target.value;
+        if (value.length > 1) {
+          value = value.charAt(0);
+          e.target.value = value;
+        }
+        handleInput(value);
+      });
+
+      input.addEventListener('focus', () => {
+        selectCell(idx);
+      });
+      
+      cell.appendChild(input);
+    }
+    
+    cell.addEventListener('click', (e) => {
+      if (gameOver || cell.classList.contains('prefilled')) return;
+      
+      const input = cell.querySelector('input');
+      if (input) {
+        input.focus();
+      }
     });
 
     boardEl.appendChild(cell);
@@ -93,7 +121,6 @@ function selectCell(idx) {
   selectedCellIndex = idx;
   const cell = boardEl.children[idx];
   cell.classList.add('selected');
-  cell.focus();
 }
 
 function moveSelection(direction) {
@@ -109,7 +136,12 @@ function moveSelection(direction) {
   }
 
   const newIndex = row * 9 + col;
-  selectCell(newIndex);
+  const newCell = boardEl.children[newIndex];
+  if (!newCell.classList.contains('prefilled')) {
+      newCell.querySelector('input').focus();
+  } else {
+      selectCell(newIndex);
+  }
 }
 
 function updateErrors() {
@@ -135,7 +167,13 @@ function updateHints() {
 
 function checkWinCondition() {
   const cells = [...boardEl.children];
-  const boardValues = cells.map(cell => cell.textContent.trim());
+  const boardValues = cells.map(cell => {
+    if (cell.classList.contains('prefilled')) {
+      return cell.textContent.trim();
+    }
+    const input = cell.querySelector('input');
+    return input ? input.value : '';
+  });
   const isSolved = boardValues.every((val, idx) => val === solution[idx]);
 
   if (isSolved) {
@@ -147,6 +185,10 @@ function endGame(won) {
   gameOver = true;
   clearInterval(timer);
   selectedCellIndex = null;
+  
+  // Disable all inputs
+  const inputs = boardEl.querySelectorAll('input');
+  inputs.forEach(input => input.disabled = true);
 
   if (won) {
     errorInfoEl.textContent = `🎉 Congratulations! You solved it in ${timerEl.textContent}!`;
@@ -159,21 +201,23 @@ function endGame(won) {
 
 function handleInput(value) {
   if (gameOver || selectedCellIndex === null) return;
-
+  
   const cell = boardEl.children[selectedCellIndex];
   if (cell.classList.contains('prefilled')) return;
 
-  if (value === 'delete') {
-    if (cell.classList.contains('incorrect')) {
-      cell.classList.remove('incorrect');
-    }
+  const cellText = cell.textContent.trim();
+  const inputValue = value.trim();
+
+  // თუ მნიშვნელობა ცარიელია, რიცხვი იშლება
+  if (inputValue === '') {
+    cell.classList.remove('incorrect');
     cell.textContent = '';
     return;
   }
+  
+  cell.textContent = inputValue;
 
-  cell.textContent = value;
-
-  if (value !== solution[selectedCellIndex]) {
+  if (inputValue !== solution[selectedCellIndex]) {
     if (!cell.classList.contains('incorrect')) {
       errorsCount++;
       updateErrors();
@@ -191,13 +235,20 @@ function handleInput(value) {
 function onKeyDown(e) {
   if (gameOver) return;
   if (selectedCellIndex === null) return;
-
+  
+  const cell = boardEl.children[selectedCellIndex];
+  if (cell.classList.contains('prefilled')) return;
+  
   if (e.key >= '1' && e.key <= '9') {
     e.preventDefault();
+    const input = cell.querySelector('input');
+    input.value = e.key;
     handleInput(e.key);
   } else if (e.key === 'Backspace' || e.key === 'Delete') {
     e.preventDefault();
-    handleInput('delete');
+    const input = cell.querySelector('input');
+    input.value = '';
+    handleInput('');
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
     moveSelection('up');
@@ -215,17 +266,22 @@ function onKeyDown(e) {
 
 function giveHint() {
   if (gameOver) return;
-  if (hintsUsed >= maxHints) return; // ამოწმებს ჰინტების ლიმიტს
+  if (hintsUsed >= maxHints) return;
 
   const cells = [...boardEl.children];
   const emptyCells = cells
-    .map((cell, idx) => (!cell.classList.contains('prefilled') && cell.textContent.trim() === '' ? idx : null))
+    .map((cell, idx) => (!cell.classList.contains('prefilled') && (cell.querySelector('input') && cell.querySelector('input').value === '') ? idx : null))
     .filter(i => i !== null);
 
   if (emptyCells.length === 0) return;
 
   const randomIdx = emptyCells[Math.floor(Math.random() * emptyCells.length)];
   const cellToHint = boardEl.children[randomIdx];
+
+  const input = cellToHint.querySelector('input');
+  if (input) {
+    input.remove(); // წაშლის input-ს, რადგან უჯრა შევსებულია
+  }
 
   cellToHint.textContent = solution[randomIdx];
   cellToHint.classList.add('prefilled', 'hinted');
@@ -243,14 +299,13 @@ function loadNewGame() {
   selectedCellIndex = null;
   const difficulty = difficultySelect.value;
   
-  // ჰინტების ცვლადების დაყენება
   hintsUsed = 0;
   maxHints = difficulty === 'medium' ? 1 : difficulty === 'hard' ? 2 : 0;
   
   puzzle = generateSudoku(difficulty);
   renderBoard(puzzle);
   updateErrors();
-  updateHints(); // ჰინტების განახლება
+  updateHints();
   
   errorInfoEl.style.color = 'var(--text-light-color)';
   startTimer();
